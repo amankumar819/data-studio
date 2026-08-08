@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthetic Data Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <h1>Synthetic Data Studio</h1>
+  <p class="sub">Generate realistic — and realistically messy — practice datasets for Excel, Power BI, and SQL. Runs entirely in your browser. Share this file with anyone; no account needed.</p>
+</header>
+
+<div class="layout">
+  <div class="config">
+
+    <div class="field">
+      <label>Company / brand name</label>
+      <input type="text" id="companyName" value="Amazon India" placeholder="e.g. Amazon India">
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;">For single-operator businesses (banks, gyms, telecoms...) this name replaces generic/competitor brand names in the data.</div>
+    </div>
+
+    <div class="field">
+      <label>Company size</label>
+      <select id="companySize">
+        <option value="startup">Startup (lean)</option>
+        <option value="smb" selected>Small / Medium Business</option>
+        <option value="midmarket">Mid-Market</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Business type</label>
+      <select id="domain">
+        <option value="ecommerce">E-commerce / Retail</option>
+        <option value="fashion">Fashion & Apparel</option>
+        <option value="food">Food Delivery</option>
+        <option value="saas">SaaS Subscriptions</option>
+        <option value="healthcare">Healthcare / Clinic</option>
+        <option value="banking">Banking / Finance</option>
+        <option value="travel">Travel & Hotels</option>
+        <option value="realestate">Real Estate</option>
+        <option value="education">Education / EdTech</option>
+        <option value="fitness">Fitness / Gym</option>
+        <option value="telecom">Telecom</option>
+        <option value="logistics">Logistics / Shipping</option>
+        <option value="media">Media / Streaming</option>
+        <option value="automotive">Automotive</option>
+        <option value="agriculture">Agriculture / Dairy</option>
+        <option value="hospitality_events">Events & Venues</option>
+        <option value="beauty_salon">Salon / Beauty Services</option>
+        <option value="b2b_wholesale">B2B / Wholesale</option>
+        <option value="generic">Generic Sales</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Market</label>
+      <select id="market">
+        <option value="india">India</option>
+        <option value="us">United States</option>
+        <option value="uk">United Kingdom</option>
+        <option value="canada">Canada</option>
+        <option value="australia">Australia</option>
+        <option value="uae">UAE</option>
+        <option value="singapore">Singapore</option>
+        <option value="germany">Germany</option>
+        <option value="france">France</option>
+        <option value="southafrica">South Africa</option>
+        <option value="brazil">Brazil</option>
+        <option value="japan">Japan</option>
+        <option value="generic">Generic / Unspecified</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Rows to generate</label>
+      <div class="row2">
+        <input type="number" id="rowCount" value="5000" min="100" max="10000000" step="100">
+        <select id="detail">
+          <option value="basic">Basic detail</option>
+          <option value="detailed" selected>Detailed</option>
+          <option value="verydetailed">Very detailed</option>
+        </select>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;">Up to 1,00,00,000 rows (1 crore). 5 lakh+ generates in batches with a progress bar; 20 lakh+ may use significant browser memory.</div>
+    </div>
+
+    <div class="field">
+      <label>Date range</label>
+      <div class="row2">
+        <input type="number" id="yearStart" value="2023" min="2015" max="2026">
+        <input type="number" id="yearEnd" value="2024" min="2015" max="2026">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Data realism dial</label>
+      <div class="gauge-wrap">
+        <div class="gauge">
+          <svg viewBox="0 0 200 110">
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="#2b3040" stroke-width="14" stroke-linecap="round"/>
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="url(#g)" stroke-width="14" stroke-linecap="round" stroke-dasharray="267" id="gaugeArc" stroke-dashoffset="267"/>
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#3fae93"/>
+                <stop offset="50%" stop-color="#e4a73b"/>
+                <stop offset="100%" stop-color="#d9645a"/>
+              </linearGradient>
+            </defs>
+            <line class="needle" id="needle" x1="100" y1="100" x2="100" y2="30" stroke="#e7e9f0" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="100" cy="100" r="6" fill="#e7e9f0"/>
+          </svg>
+        </div>
+        <input type="range" id="messiness" min="0" max="100" value="30">
+        <div class="gauge-label"><b id="messinessLabel">Light mess</b> — missing values, formatting drift, duplicates, outliers</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Business trend (main table)</label>
+      <select id="trendMode">
+        <option value="none">None — even, random spread</option>
+        <option value="steady_growth">Steady growth over time</option>
+        <option value="seasonal_spike">Seasonal spike (Oct–Nov)</option>
+        <option value="q3_dip">Q3 dip (slow Jul–Sep)</option>
+        <option value="post_launch_surge">Post-launch surge, then taper</option>
+      </select>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;">Shapes when the main table's transactions happen — great for practicing trend charts and YoY analysis.</div>
+    </div>
+
+    <div class="field">
+      <label>Table structure</label>
+      <select id="structure">
+        <option value="flat">Single flat table</option>
+        <option value="relational">Relational (Customers / Products / Orders)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>File format</label>
+      <select id="fileFormat">
+        <option value="xlsx">Excel (.xlsx)</option>
+        <option value="csv">CSV</option>
+      </select>
+    </div>
+
+    <button class="primary" id="generateBtn">Generate preview</button>
+    <button class="secondary" id="downloadBtn" disabled>Download dataset</button>
+    <div id="genTime" style="font-size:11px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;text-align:center;"></div>
+
+    <div class="row2" style="margin-top:16px;">
+      <button class="secondary" id="saveConfigBtn" style="color:var(--muted);border-color:var(--grid);">Save settings</button>
+      <button class="secondary" id="loadConfigBtn" style="color:var(--muted);border-color:var(--grid);">Load settings</button>
+    </div>
+    <input type="file" id="configFileInput" accept="application/json" style="display:none;">
+  </div>
+
+  <div class="main">
+    <div class="stats" id="stats" style="display:none;">
+      <div class="stat"><div class="num" id="statRows">0</div><div class="lbl">Rows</div></div>
+      <div class="stat"><div class="num" id="statCols">0</div><div class="lbl">Columns</div></div>
+      <div class="stat"><div class="num" id="statIssues">0</div><div class="lbl">Planted issues</div></div>
+    </div>
+    <div id="tableArea">
+      <div class="empty">Configure your dataset on the left, then click <b>Generate preview</b>.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  This tool produces 100% synthetic data for learning and portfolio use — it does not represent real company data.
+</footer>
+
+<script src="script.js"></script>
+
+</body>
+</html>

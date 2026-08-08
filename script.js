@@ -1572,7 +1572,7 @@ function generateDataset(){
   const company = document.getElementById('companyName').value.trim() || "Demo Co";
   const domainKey = document.getElementById('domain').value;
   const market = document.getElementById('market').value;
-  const rowCount = Math.min(100000000, Math.max(100, parseInt(document.getElementById('rowCount').value) || 1000));
+  const rowCount = Math.min(10000000, Math.max(100, parseInt(document.getElementById('rowCount').value) || 1000));
   const detail = document.getElementById('detail').value;
   const yearStart = parseInt(document.getElementById('yearStart').value);
   const yearEnd = parseInt(document.getElementById('yearEnd').value);
@@ -1784,10 +1784,10 @@ function setGeneratingState(isGenerating, message){
 
 document.getElementById('generateBtn').addEventListener('click', ()=>{
   const rawInput = parseInt(document.getElementById('rowCount').value) || 1000;
-  if(rawInput > 100000000){
-    alert(`Row count capped at 10,00,00,000 (10 crore). You entered ${rawInput.toLocaleString()} — generating 10,00,00,000 rows instead.`);
+  if(rawInput > 10000000){
+    alert(`Row count capped at 1,00,00,000 (1 crore). You entered ${rawInput.toLocaleString()} — generating 1,00,00,000 rows instead.`);
   }
-  const rowCount = Math.min(100000000, Math.max(100, rawInput));
+  const rowCount = Math.min(10000000, Math.max(100, rawInput));
   if(rowCount > 2000000){
     const proceed = confirm(`Generating ${rowCount.toLocaleString()} rows is a large job — it may take a while and use significant browser memory. Continue?`);
     if(!proceed) return;

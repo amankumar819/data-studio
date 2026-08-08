@@ -27,6 +27,7 @@
     <div class="field">
       <label>Company size</label>
       <select id="companySize">
+         <option value=""Dislabled Selected> Select
         <option value="startup">Startup (lean)</option>
         <option value="smb" selected>Small / Medium Business</option>
         <option value="midmarket">Mid-Market</option>
@@ -37,7 +38,7 @@
     <div class="field">
       <label>Business type</label>
       <select id="domain">
-        <option value=""Dislabled Selected> Select>
+        <option value=""Dislabled Selected> Select
         <option value="ecommerce">E-commerce / Retail</option>
         <option value="fashion">Fashion & Apparel</option>
         <option value="food">Food Delivery</option>
@@ -63,6 +64,7 @@
     <div class="field">
       <label>Market</label>
       <select id="market">
+         <option value=""Dislabled Selected> Select
         <option value="india">India</option>
         <option value="us">United States</option>
         <option value="uk">United Kingdom</option>
@@ -82,14 +84,14 @@
     <div class="field">
       <label>Rows to generate</label>
       <div class="row2">
-        <input type="number" id="rowCount" value="5000" min="100" max="10000000" step="100">
+        <input type="number" id="rowCount" value="500000" min="100000" max="100000000" step="100">
         <select id="detail">
           <option value="basic">Basic detail</option>
           <option value="detailed" selected>Detailed</option>
           <option value="verydetailed">Very detailed</option>
         </select>
       </div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;">Up to 1,00,00,000 rows (1 crore). 5 lakh+ generates in batches with a progress bar; 20 lakh+ may use significant browser memory.</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;">Up to 10,00,00,000 rows (1 crore). 5 lakh+ generates in batches with a progress bar; 20 lakh+ may use significant browser memory.</div>
     </div>
 
     <div class="field">

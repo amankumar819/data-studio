@@ -342,9 +342,45 @@ function fmtDate(d){
   return `${y}-${m}-${day}`;
 }
 
+// Direct string-based CSV builder — avoids building a full SheetJS worksheet object
+// (which creates a cell object per cell) just to throw it away as text. For large
+// datasets this is the difference between seconds and minutes.
+function csvEscape(val){
+  if(val === null || val === undefined) return '';
+  const s = String(val);
+  if(/[",\n\r]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
 function toCSV(rows){
-  const ws = XLSX.utils.json_to_sheet(rows);
-  return XLSX.utils.sheet_to_csv(ws);
+  if(!rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const lines = new Array(rows.length + 1);
+  lines[0] = cols.map(csvEscape).join(',');
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    lines[i+1] = cols.map(c=>csvEscape(r[c])).join(',');
+  }
+  return lines.join('\r\n');
+}
+// Chunked version — yields to the browser every CHUNK rows so the tab stays responsive
+// and the download button can show live progress, instead of one long blocking call.
+async function toCSVChunked(rows, onProgress){
+  if(!rows.length) return '';
+  const CHUNK = 100000;
+  const cols = Object.keys(rows[0]);
+  const parts = [cols.map(csvEscape).join(',')];
+  for(let i=0;i<rows.length;i+=CHUNK){
+    const end = Math.min(i+CHUNK, rows.length);
+    const buf = new Array(end-i);
+    for(let j=i;j<end;j++){
+      const r = rows[j];
+      buf[j-i] = cols.map(c=>csvEscape(r[c])).join(',');
+    }
+    parts.push(buf.join('\r\n'));
+    if(onProgress) onProgress(end, rows.length);
+    await new Promise(res=>setTimeout(res,0)); // yield to the browser
+  }
+  return parts.join('\r\n');
 }
 
 const MARKET_CONFIG = {
@@ -1827,7 +1863,17 @@ document.getElementById('generateBtn').addEventListener('click', ()=>{
   }, 30);
 });
 
-document.getElementById('downloadBtn').addEventListener('click', ()=>{
+const EXCEL_MAX_ROWS = 1048576 - 10; // leave headroom below Excel's hard sheet limit
+
+function setDownloadingState(isDownloading, message){
+  const btn = document.getElementById('downloadBtn');
+  const genBtn = document.getElementById('generateBtn');
+  btn.disabled = isDownloading;
+  genBtn.disabled = isDownloading;
+  btn.textContent = isDownloading ? (message || "Downloading...") : "Download dataset";
+}
+
+document.getElementById('downloadBtn').addEventListener('click', async ()=>{
   if(!generatedData) return;
   const company = document.getElementById('companyName').value.trim() || "Demo Co";
   const safeName = company.replace(/[^a-z0-9]/gi,'_');
@@ -1838,6 +1884,29 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
   const cfg = MARKET_CONFIG[marketKey] || MARKET_CONFIG.generic;
   const domainKey = document.getElementById('domain').value;
   const kpiList = getKpiSuggestions(domainKey);
+
+  // Excel (.xlsx) has a hard limit of 1,048,576 rows per sheet — this is a file-format
+  // limit, not something we can raise. Catch it up front with a clear message instead
+  // of letting the export silently hang or fail deep inside the library.
+  if(format === "xlsx"){
+    const tableSizes = isRelational
+      ? Object.entries(generatedData.tables).map(([n,r])=>[n,r.length])
+      : [["Raw Data", generatedData.length]];
+    const oversized = tableSizes.filter(([,len])=>len > EXCEL_MAX_ROWS);
+    if(oversized.length){
+      alert(
+        `Excel files can hold a maximum of 10,48,576 rows per sheet — this is a hard limit of the .xlsx format itself, not something the tool controls.\n\n` +
+        oversized.map(([n,len])=>`• ${n}: ${len.toLocaleString()} rows (over the limit)`).join('\n') +
+        `\n\nPlease switch File Format to CSV for datasets this large — CSV has no row limit and exports much faster.`
+      );
+      return;
+    }
+  }
+
+  setDownloadingState(true, "Preparing...");
+  await new Promise(res=>setTimeout(res,20)); // let the button repaint before heavy work starts
+
+  try{
 
   // Lightweight data dictionary: for each table, note its primary key (first "...ID" column)
   // and any other ID columns, which are foreign keys into another table's primary key.
@@ -1898,30 +1967,45 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
     XLSX.utils.book_append_sheet(wb, wsKpi, "Suggested KPIs");
 
     if(isRelational){
-      Object.entries(generatedData.tables).forEach(([name, rows])=>{
+      const entries = Object.entries(generatedData.tables);
+      for(let i=0;i<entries.length;i++){
+        const [name, rows] = entries[i];
+        setDownloadingState(true, `Building ${name}...`);
+        await new Promise(res=>setTimeout(res,0));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.substring(0,31));
-      });
+      }
     } else {
+      setDownloadingState(true, "Building sheet...");
+      await new Promise(res=>setTimeout(res,0));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(generatedData), "Raw Data");
     }
+    setDownloadingState(true, "Writing file...");
+    await new Promise(res=>setTimeout(res,0));
     XLSX.writeFile(wb, `${safeName}_synthetic_data.xlsx`);
   } else {
-    // CSV format
+    // CSV format — built via the chunked, yielding builder so large exports don't freeze the tab
     if(isRelational){
       const zip = new JSZip();
       zip.file("README.txt", readmeLines.join("\n"));
-      Object.entries(generatedData.tables).forEach(([name, rows])=>{
-        zip.file(`${name.replace(/[^a-z0-9]/gi,'_')}.csv`, toCSV(rows));
-      });
-      zip.generateAsync({type:"blob"}).then(blob=>{
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `${safeName}_synthetic_data.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-      });
+      const entries = Object.entries(generatedData.tables);
+      for(let i=0;i<entries.length;i++){
+        const [name, rows] = entries[i];
+        const csv = await toCSVChunked(rows, (done,total)=>{
+          setDownloadingState(true, `${name}: ${Math.round(done/total*100)}%`);
+        });
+        zip.file(`${name.replace(/[^a-z0-9]/gi,'_')}.csv`, csv);
+      }
+      setDownloadingState(true, "Zipping...");
+      const blob = await zip.generateAsync({type:"blob"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${safeName}_synthetic_data.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
     } else {
-      const csv = toCSV(generatedData);
+      const csv = await toCSVChunked(generatedData, (done,total)=>{
+        setDownloadingState(true, `Building CSV: ${Math.round(done/total*100)}%`);
+      });
       const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1929,6 +2013,13 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
       a.click();
       URL.revokeObjectURL(url);
     }
+  }
+
+  } catch(err){
+    console.error(err);
+    alert("Download failed — likely ran out of browser memory for this dataset size. Try a smaller row count, or export as CSV instead of Excel.");
+  } finally {
+    setDownloadingState(false);
   }
 });
 

@@ -20,23 +20,25 @@
 
     <div class="field">
       <label>Company / brand name</label>
-      <input type="text" id="companyName" value="Amazon India" placeholder="e.g. Amazon India">
+      <input type="text" id="companyName" placeholder="e.g. Amazon India">
       <div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace;">For single-operator businesses (banks, gyms, telecoms...) this name replaces generic/competitor brand names in the data.</div>
     </div>
 
-    <div class="field">
-      <label>Company size</label>
-      <select id="companySize">
-        <option value="startup">Startup (lean)</option>
-        <option value="smb" selected>Small / Medium Business</option>
-        <option value="midmarket">Mid-Market</option>
-        <option value="enterprise">Enterprise</option>
-      </select>
-    </div>
+   <div class="field">
+  <label>Company size</label>
+  <select id="companySize">
+    <option value="" selected>Select</option>
+    <option value="startup">Startup (lean)</option>
+    <option value="smb">Small / Medium Business</option>
+    <option value="midmarket">Mid-Market</option>
+    <option value="enterprise">Enterprise</option>
+  </select>
+</div>
 
     <div class="field">
       <label>Business type</label>
       <select id="domain">
+       <option value="" selected>Select</option>
         <option value="ecommerce">E-commerce / Retail</option>
         <option value="fashion">Fashion & Apparel</option>
         <option value="food">Food Delivery</option>
@@ -62,6 +64,7 @@
     <div class="field">
       <label>Market</label>
       <select id="market">
+        <option value="" selected>Select</option>
         <option value="india">India</option>
         <option value="us">United States</option>
         <option value="uk">United Kingdom</option>
@@ -81,8 +84,9 @@
     <div class="field">
       <label>Rows to generate</label>
       <div class="row2">
-        <input type="number" id="rowCount" value="5000" min="100" max="5000000" step="100">
+        <input type="number" id="rowCount" value="100000" min="100" max="5000000" step="100">
         <select id="detail">
+          <option value="" selected>Select</option>
           <option value="basic">Basic detail</option>
           <option value="detailed" selected>Detailed</option>
           <option value="verydetailed">Very detailed</option>
@@ -95,7 +99,7 @@
       <label>Date range</label>
       <div class="row2">
         <input type="number" id="yearStart" value="2023" min="2015" max="2026">
-        <input type="number" id="yearEnd" value="2024" min="2015" max="2026">
+        <input type="number" id="yearEnd" value="2026" min="2015" max="2026">
       </div>
     </div>
 
@@ -125,6 +129,7 @@
     <div class="field">
       <label>Business trend (main table)</label>
       <select id="trendMode">
+        <option value="" selected>Select</option>
         <option value="none">None — even, random spread</option>
         <option value="steady_growth">Steady growth over time</option>
         <option value="seasonal_spike">Seasonal spike (Oct–Nov)</option>
@@ -137,6 +142,7 @@
     <div class="field">
       <label>Table structure</label>
       <select id="structure">
+        <option value="" selected>Select</option>
         <option value="flat">Single flat table</option>
         <option value="relational">Relational (Customers / Products / Orders)</option>
       </select>

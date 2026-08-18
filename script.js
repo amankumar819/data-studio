@@ -351,6 +351,11 @@ function csvEscape(val){
   if(/[",\n\r]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
   return s;
 }
+// Yields control back to the browser so long generation loops don't lock up the tab —
+// called periodically inside every schema builder's main row loop.
+function yieldToUI(){
+  return new Promise(res=>setTimeout(res,0));
+}
 function toCSV(rows){
   if(!rows.length) return '';
   const cols = Object.keys(rows[0]);
@@ -504,7 +509,7 @@ const DOMAIN_SCHEMAS = {
   generic: {peopleLabel:"Customers",peopleSingular:"Customer",peoplePrefix:"CUST",catalogLabel:"Items",catalogSingular:"Item",catalogPrefix:"ITM",staffLabel:"Vendors",staffSingular:"Vendor",staffPrefix:"VND",locationLabel:"Locations",locationSingular:"Location",locationPrefix:"LOC",transactionLabel:"Transactions"},
 };
 
-function buildRelationalDataset(domainKey, domain, cities, rowCount, detail, yearStart, yearEnd, messiness, market, companyName, sizeKey, trendMode){
+async function buildRelationalDataset(domainKey, domain, cities, rowCount, detail, yearStart, yearEnd, messiness, market, companyName, sizeKey, trendMode){
   const schema = DOMAIN_SCHEMAS[domainKey] || DOMAIN_SCHEMAS.generic;
 
   // People (Customers / Patients / Members / Subscribers / etc.)
@@ -558,6 +563,7 @@ function buildRelationalDataset(domainKey, domain, cities, rowCount, detail, yea
   // Transactions (Orders / Appointments / Bookings / etc.) — the fact table linking everything
   let transactions = [];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const person = choice(people);
     const item = choice(catalog);
     const staffMember = choice(staff);
@@ -836,7 +842,7 @@ function applyGenericMessiness(tables, mainTable, messinessPct, market){
 
 // ---- Custom bespoke schemas per business type ----
 
-function buildEcommerceSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildEcommerceSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const custCount = coreTableSize(rowCount, 0.25, sizeKey, 50);
   let customers=[];
   for(let i=0;i<custCount;i++){
@@ -867,6 +873,7 @@ function buildEcommerceSchema(rowCount, detail, cities, yearStart, yearEnd, mark
   });
   let orders=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const cust=choice(customers); const prod=choice(products); const wh=choice(warehouses);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const festiveBoost=(date.getMonth()===9||date.getMonth()===10)?1.4:1.0;
@@ -890,7 +897,7 @@ function buildEcommerceSchema(rowCount, detail, cities, yearStart, yearEnd, mark
   return {tables:{Customers:customers,Sellers:sellers,Warehouses:warehouses,Products:products,Orders:orders}, mainTable:"Orders"};
 }
 
-function buildFitnessSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildFitnessSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const gymName = operatorLabel(companyName, "FitZone Gym");
   const memberCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
   let members=[];
@@ -921,6 +928,7 @@ function buildFitnessSchema(rowCount, detail, cities, yearStart, yearEnd, market
   }
   let attendance=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const member=choice(members); const cls=choice(classes);
     // Attendance can't predate the member's own join date — previously randomized
     // independently, which could show a member attending a class before they joined.
@@ -934,7 +942,7 @@ function buildFitnessSchema(rowCount, detail, cities, yearStart, yearEnd, market
   return {tables:{Members:members,Trainers:trainers,Memberships:memberships,Classes:classes,Attendance:attendance}, mainTable:"Attendance"};
 }
 
-function buildHealthcareSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildHealthcareSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const networkName = operatorLabel(companyName, "CareWell Health");
   const patCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
   let patients=[];
@@ -957,6 +965,7 @@ function buildHealthcareSchema(rowCount, detail, cities, yearStart, yearEnd, mar
   const serviceTypes=Object.values(domain.categories).flat();
   let appointments=[]; let billing=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const patient=choice(patients); const doctor=choice(doctors);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const service=choice(serviceTypes);
@@ -975,7 +984,7 @@ function buildHealthcareSchema(rowCount, detail, cities, yearStart, yearEnd, mar
   return {tables:{Patients:patients,Doctors:doctors,Clinics:clinics,Appointments:appointments,Billing:billing}, mainTable:"Appointments"};
 }
 
-function buildBankingSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildBankingSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const bankName = operatorLabel(companyName, "Meridian Bank");
   const custCount=coreTableSize(rowCount, 0.25, sizeKey, 50);
   let customers=[];
@@ -1000,6 +1009,7 @@ function buildBankingSchema(rowCount, detail, cities, yearStart, yearEnd, market
   const txnTypes=Object.values(domain.categories).flat();
   let transactions=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const acct=choice(accounts);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const txnType=choice(txnTypes);
@@ -1020,7 +1030,7 @@ function buildBankingSchema(rowCount, detail, cities, yearStart, yearEnd, market
   return {tables:{Customers:customers,Branches:branches,Accounts:accounts,Transactions:transactions,Loans:loans}, mainTable:"Transactions"};
 }
 
-function buildMediaSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildMediaSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const platformName = operatorLabel(companyName, "StreamVerse");
   const planDefs=[["Basic",199],["Standard",499],["Premium",799],["Family",999]];
   let plans=planDefs.map(([name,price],i)=>({"Plan ID":`PLN${10+i}`,"Plan Name":`${platformName} ${name}`,"Price":localAmount(price,market),"Billing Cycle":choice(["Monthly","Annual"])}));
@@ -1050,6 +1060,7 @@ function buildMediaSchema(rowCount, detail, cities, yearStart, yearEnd, market, 
   });
   let sessions=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const sub=choice(subscribers); const c=choice(content);
     const subDevices=devicesBySubscriber[sub["Subscriber ID"]];
     const device=(subDevices && subDevices.length)?choice(subDevices):choice(devices);
@@ -1065,7 +1076,7 @@ function buildMediaSchema(rowCount, detail, cities, yearStart, yearEnd, market, 
   return {tables:{Subscribers:subscribers,Plans:plans,Content:content,Devices:devices,"Watch Sessions":sessions}, mainTable:"Watch Sessions"};
 }
 
-function buildFashionSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildFashionSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.fashion;
   const retailerName = operatorLabel(companyName, "Northline Retail");
   const custCount = coreTableSize(rowCount, 0.25, sizeKey, 50);
@@ -1096,6 +1107,7 @@ function buildFashionSchema(rowCount, detail, cities, yearStart, yearEnd, market
   });
   let orders=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const cust=choice(customers); const prod=choice(products); const store=choice(stores);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const variance=0.9+Math.random()*0.2;
@@ -1110,7 +1122,7 @@ function buildFashionSchema(rowCount, detail, cities, yearStart, yearEnd, market
   return {tables:{Customers:customers,Brands:brands,Stores:stores,Products:products,Orders:orders}, mainTable:"Orders"};
 }
 
-function buildFoodSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildFoodSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.food;
   const custCount=coreTableSize(rowCount, 0.25, sizeKey, 50);
   let customers=[];
@@ -1141,6 +1153,7 @@ function buildFoodSchema(rowCount, detail, cities, yearStart, yearEnd, market, c
   }
   let orders=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const cust=choice(customers); const item=choice(menuItems); const partner=choice(partners);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const variance=0.9+Math.random()*0.2;
@@ -1155,7 +1168,7 @@ function buildFoodSchema(rowCount, detail, cities, yearStart, yearEnd, market, c
   return {tables:{Customers:customers,Restaurants:restaurants,"Menu Items":menuItems,"Delivery Partners":partners,Orders:orders}, mainTable:"Orders"};
 }
 
-function buildSaasSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildSaasSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.saas;
   const custCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
   let customers=[];
@@ -1177,6 +1190,7 @@ function buildSaasSchema(rowCount, detail, cities, yearStart, yearEnd, market, c
   }
   let subscriptions=[]; let invoices=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const cust=choice(customers); const plan=choice(plans); const rep=choice(reps);
     const start=randomDate(yearStart,yearEnd);
     let subRow={"Subscription ID":`SUB${100000+i}`,"Customer ID":cust["Customer ID"],"Plan ID":plan["Plan ID"],"Rep ID":rep["Rep ID"],"Start Date":fmtDate(start),"Status":choice(["Active","Cancelled","Trial","Past Due"])};
@@ -1186,7 +1200,7 @@ function buildSaasSchema(rowCount, detail, cities, yearStart, yearEnd, market, c
   return {tables:{Customers:customers,Plans:plans,"Sales Reps":reps,Subscriptions:subscriptions,Invoices:invoices}, mainTable:"Subscriptions"};
 }
 
-function buildTravelSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildTravelSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.travel;
   const travCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
   let travelers=[];
@@ -1210,6 +1224,7 @@ function buildTravelSchema(rowCount, detail, cities, yearStart, yearEnd, market,
   }
   let bookings=[]; let payments=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const traveler=choice(travelers);
     const type=choice(["Hotel","Flight","Package"]);
     let hotelId="", flightId="", amount=0;
@@ -1224,7 +1239,7 @@ function buildTravelSchema(rowCount, detail, cities, yearStart, yearEnd, market,
   return {tables:{Travelers:travelers,Hotels:hotels,Flights:flights,Bookings:bookings,Payments:payments}, mainTable:"Bookings"};
 }
 
-function buildRealEstateSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildRealEstateSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.realestate;
   const agencyName = operatorLabel(companyName, "Landmark Realty");
   const clientCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
@@ -1253,6 +1268,7 @@ function buildRealEstateSchema(rowCount, detail, cities, yearStart, yearEnd, mar
   });
   let deals=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const client=choice(clients); const property=choice(properties); const agent=choice(agents);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const amount=Math.round(property["Price"]*(0.95+Math.random()*0.1)*100)/100;
@@ -1262,7 +1278,7 @@ function buildRealEstateSchema(rowCount, detail, cities, yearStart, yearEnd, mar
   return {tables:{Clients:clients,Agents:agents,Properties:properties,Localities:localities,Deals:deals}, mainTable:"Deals"};
 }
 
-function buildEducationSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildEducationSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.education;
   const instituteName = operatorLabel(companyName, "BrightPath Academy");
   const studentCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
@@ -1286,6 +1302,7 @@ function buildEducationSchema(rowCount, detail, cities, yearStart, yearEnd, mark
   });
   let enrollments=[]; let payments=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const student=choice(students); const course=choice(courses);
     const date=trendDate(yearStart,yearEnd,trendMode);
     let row={"Enrollment ID":`ENR${100000+i}`,"Date":fmtDate(date),"Student ID":student["Student ID"],"Course ID":course["Course ID"],"Status":choice(domain.status),"Progress (%)":rand(0,100)};
@@ -1295,7 +1312,7 @@ function buildEducationSchema(rowCount, detail, cities, yearStart, yearEnd, mark
   return {tables:{Students:students,Instructors:instructors,Courses:courses,Enrollments:enrollments,Payments:payments}, mainTable:"Enrollments"};
 }
 
-function buildTelecomSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildTelecomSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.telecom;
   const providerName = operatorLabel(companyName, "Airwave Telecom");
   const subCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
@@ -1321,6 +1338,7 @@ function buildTelecomSchema(rowCount, detail, cities, yearStart, yearEnd, market
   }
   let recharges=[]; let complaints=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const sub=choice(subscribers); const plan=choice(plans); const circle=choice(circles);
     const date=trendDate(yearStart,yearEnd,trendMode);
     let row={"Recharge ID":`RCH${100000+i}`,"Date":fmtDate(date),"Subscriber ID":sub["Subscriber ID"],"Plan ID":plan["Plan ID"],"Circle ID":circle["Circle ID"],"Amount":plan["Price"],"Payment Method":choice(domain.payment),"Status":choice(domain.status)};
@@ -1333,7 +1351,7 @@ function buildTelecomSchema(rowCount, detail, cities, yearStart, yearEnd, market
   return {tables:{Subscribers:subscribers,Plans:plans,Circles:circles,Recharges:recharges,Complaints:complaints}, mainTable:"Recharges"};
 }
 
-function buildLogisticsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildLogisticsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.logistics;
   const carrierName = operatorLabel(companyName, "SwiftHaul Logistics");
   const clientCount=coreTableSize(rowCount, 0.25, sizeKey, 50);
@@ -1356,6 +1374,7 @@ function buildLogisticsSchema(rowCount, detail, cities, yearStart, yearEnd, mark
   let shipments=[]; let events=[];
   const eventStages=["Picked Up","In Transit","Out for Delivery","Delivered","Delayed"];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const client=choice(clients); const driver=choice(drivers); const wh=choice(warehouses);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const cat=choice(Object.keys(domain.categories));
@@ -1376,7 +1395,7 @@ function buildLogisticsSchema(rowCount, detail, cities, yearStart, yearEnd, mark
   return {tables:{Clients:clients,Drivers:drivers,Warehouses:warehouses,Shipments:shipments,"Delivery Events":events}, mainTable:"Shipments"};
 }
 
-function buildAutomotiveSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildAutomotiveSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.automotive;
   const custCount=coreTableSize(rowCount, 0.3, sizeKey);
   let customers=[];
@@ -1399,6 +1418,7 @@ function buildAutomotiveSchema(rowCount, detail, cities, yearStart, yearEnd, mar
   });
   let bookings=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const customer=choice(customers); const vehicle=choice(vehicles);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const amount=Math.round(vehicle["Price"]*(0.97+Math.random()*0.06)*100)/100;
@@ -1416,7 +1436,7 @@ function buildAutomotiveSchema(rowCount, detail, cities, yearStart, yearEnd, mar
   return {tables:{Customers:customers,Showrooms:showrooms,Vehicles:vehicles,Bookings:bookings,"Service Records":serviceRecords}, mainTable:"Bookings"};
 }
 
-function buildAgricultureSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildAgricultureSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.agriculture;
   const farmerCount=coreTableSize(rowCount, 0.05, sizeKey, 20);
   let farmers=[];
@@ -1439,6 +1459,7 @@ function buildAgricultureSchema(rowCount, detail, cities, yearStart, yearEnd, ma
   }
   let cropSales=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const farmer=choice(farmers); const buyer=choice(buyers); const mandi=choice(mandis);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const cat=choice(Object.keys(domain.categories));
@@ -1457,7 +1478,7 @@ function buildAgricultureSchema(rowCount, detail, cities, yearStart, yearEnd, ma
   return {tables:{Farmers:farmers,Buyers:buyers,Mandis:mandis,"Crop Sales":cropSales,"Equipment Rentals":rentals}, mainTable:"Crop Sales"};
 }
 
-function buildEventsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildEventsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.hospitality_events;
   const clientCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
   let clients=[];
@@ -1478,6 +1499,7 @@ function buildEventsSchema(rowCount, detail, cities, yearStart, yearEnd, market,
   }
   let bookings=[]; let guestLists=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const client=choice(clients); const venue=choice(venues);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const amount=Math.round(venue["Base Price"]*(0.9+Math.random()*0.3)*100)/100;
@@ -1491,7 +1513,7 @@ function buildEventsSchema(rowCount, detail, cities, yearStart, yearEnd, market,
   return {tables:{Clients:clients,Venues:venues,Vendors:vendors,Bookings:bookings,"Guest Lists":guestLists}, mainTable:"Bookings"};
 }
 
-function buildSalonSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildSalonSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.beauty_salon;
   const chainName = operatorLabel(companyName, "Glow & Co Salon");
   const custCount=coreTableSize(rowCount, 0.3, sizeKey, 50);
@@ -1515,6 +1537,7 @@ function buildSalonSchema(rowCount, detail, cities, yearStart, yearEnd, market, 
   });
   let appointments=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const customer=choice(customers); const stylist=choice(stylists); const service=choice(services);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const amount=Math.round(service["Price"]*(0.95+Math.random()*0.1)*100)/100;
@@ -1530,7 +1553,7 @@ function buildSalonSchema(rowCount, detail, cities, yearStart, yearEnd, market, 
   return {tables:{Customers:customers,Stylists:stylists,Services:services,Appointments:appointments,Products:products}, mainTable:"Appointments"};
 }
 
-function buildB2BSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
+async function buildB2BSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode){
   const domain = DOMAINS.b2b_wholesale;
   const buyerCount=coreTableSize(rowCount, 0.25, sizeKey, 50);
   let buyers=[];
@@ -1552,6 +1575,7 @@ function buildB2BSchema(rowCount, detail, cities, yearStart, yearEnd, market, co
   }
   let purchaseOrders=[]; let shipments=[];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const buyer=choice(buyers); const supplier=choice(suppliers); const wh=choice(warehouses);
     const date=trendDate(yearStart,yearEnd,trendMode);
     const cat=choice(Object.keys(domain.categories));
@@ -1567,30 +1591,30 @@ function buildB2BSchema(rowCount, detail, cities, yearStart, yearEnd, market, co
   return {tables:{Buyers:buyers,Suppliers:suppliers,Warehouses:warehouses,"Purchase Orders":purchaseOrders,Shipments:shipments}, mainTable:"Purchase Orders"};
 }
 
-function buildCustomRelational(domainKey, rowCount, detail, cities, yearStart, yearEnd, messiness, market, companyName, sizeKey, trendMode){
+async function buildCustomRelational(domainKey, rowCount, detail, cities, yearStart, yearEnd, messiness, market, companyName, sizeKey, trendMode){
   let result;
   switch(domainKey){
-    case "ecommerce": result = buildEcommerceSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "fitness": result = buildFitnessSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "healthcare": result = buildHealthcareSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "banking": result = buildBankingSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "media": result = buildMediaSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "fashion": result = buildFashionSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "food": result = buildFoodSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "saas": result = buildSaasSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "travel": result = buildTravelSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "realestate": result = buildRealEstateSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "education": result = buildEducationSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "telecom": result = buildTelecomSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "logistics": result = buildLogisticsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "automotive": result = buildAutomotiveSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "agriculture": result = buildAgricultureSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "hospitality_events": result = buildEventsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "beauty_salon": result = buildSalonSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
-    case "b2b_wholesale": result = buildB2BSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "ecommerce": result = await buildEcommerceSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "fitness": result = await buildFitnessSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "healthcare": result = await buildHealthcareSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "banking": result = await buildBankingSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "media": result = await buildMediaSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "fashion": result = await buildFashionSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "food": result = await buildFoodSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "saas": result = await buildSaasSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "travel": result = await buildTravelSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "realestate": result = await buildRealEstateSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "education": result = await buildEducationSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "telecom": result = await buildTelecomSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "logistics": result = await buildLogisticsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "automotive": result = await buildAutomotiveSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "agriculture": result = await buildAgricultureSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "hospitality_events": result = await buildEventsSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "beauty_salon": result = await buildSalonSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
+    case "b2b_wholesale": result = await buildB2BSchema(rowCount, detail, cities, yearStart, yearEnd, market, companyName, sizeKey, trendMode); break;
     default: {
       const domain = DOMAINS[domainKey];
-      const generic = buildRelationalDataset(domainKey, domain, cities, rowCount, detail, yearStart, yearEnd, 0, market, companyName, sizeKey);
+      const generic = await buildRelationalDataset(domainKey, domain, cities, rowCount, detail, yearStart, yearEnd, 0, market, companyName, sizeKey, trendMode);
       result = { tables: {
         [generic.schema.peopleLabel]: generic.people,
         [generic.schema.catalogLabel]: generic.catalog,
@@ -1604,7 +1628,7 @@ function buildCustomRelational(domainKey, rowCount, detail, cities, yearStart, y
   return result;
 }
 
-function generateDataset(){
+async function generateDataset(){
   const company = document.getElementById('companyName').value.trim() || "Demo Co";
   const domainKey = document.getElementById('domain').value;
   const market = document.getElementById('market').value;
@@ -1622,6 +1646,7 @@ function generateDataset(){
 
   let rows = [];
   for(let i=0;i<rowCount;i++){
+    if(i>0 && i%50000===0) await yieldToUI();
     const cat = choice(catNames);
     const product = choice(domain.categories[cat]);
     const [city,state] = choice(cities);
@@ -1818,49 +1843,54 @@ function setGeneratingState(isGenerating, message){
   btn.textContent = isGenerating ? (message || "Generating...") : "Generate preview";
 }
 
-document.getElementById('generateBtn').addEventListener('click', ()=>{
+const MAX_ROWS = 5000000; // 50 lakh — realistic ceiling for in-browser generation + export
+
+document.getElementById('generateBtn').addEventListener('click', async ()=>{
   const rawInput = parseInt(document.getElementById('rowCount').value) || 1000;
-  if(rawInput > 10000000){
-    alert(`Row count capped at 1,00,00,000 (1 crore). You entered ${rawInput.toLocaleString()} — generating 1,00,00,000 rows instead.`);
+  if(rawInput > MAX_ROWS){
+    alert(`Row count capped at ${MAX_ROWS.toLocaleString()} (50 lakh) — this is the realistic ceiling for generating and exporting data inside a browser tab. Generating ${MAX_ROWS.toLocaleString()} rows instead.`);
   }
-  const rowCount = Math.min(10000000, Math.max(100, rawInput));
-  if(rowCount > 2000000){
-    const proceed = confirm(`Generating ${rowCount.toLocaleString()} rows is a large job — it may take a while and use significant browser memory. Continue?`);
+  const rowCount = Math.min(MAX_ROWS, Math.max(100, rawInput));
+  const format = document.getElementById('fileFormat').value;
+  if(format === 'xlsx' && rowCount > 1000000){
+    alert(`Heads up: Excel files can hold a maximum of 10,48,576 rows per sheet (a hard limit of the .xlsx format itself). With ${rowCount.toLocaleString()} rows, switch File Format to CSV before downloading, or this export will be blocked.`);
+  }
+  if(rowCount > 1000000){
+    const proceed = confirm(`Generating ${rowCount.toLocaleString()} rows is a large job — it will take real time and use significant browser memory, though the tab should stay responsive. Continue?`);
     if(!proceed) return;
   }
 
   setGeneratingState(true, "Generating...");
-  setTimeout(()=>{
-    const t0 = performance.now();
-    try{
-      const structure = document.getElementById('structure').value;
-      const companyName = document.getElementById('companyName').value.trim();
-      const sizeKey = getCompanySize();
-      if(structure === "relational"){
-        const domainKey = document.getElementById('domain').value;
-        const market = document.getElementById('market').value;
-        const detail = document.getElementById('detail').value;
-        const yearStart = parseInt(document.getElementById('yearStart').value);
-        const yearEnd = parseInt(document.getElementById('yearEnd').value);
-        const messiness = parseInt(document.getElementById('messiness').value);
-        const trendMode = document.getElementById('trendMode').value;
-        const cities = CITIES[market];
-        generatedData = buildCustomRelational(domainKey, rowCount, detail, cities, yearStart, yearEnd, messiness, market, companyName, sizeKey, trendMode);
-        generatedIssues = generatedData.issues;
-        renderRelationalPreview(generatedData);
-      } else {
-        generatedData = generateDataset();
-        renderPreview(generatedData);
-      }
-      const elapsed = ((performance.now()-t0)/1000).toFixed(1);
-      document.getElementById('genTime').textContent = `Generated in ${elapsed}s`;
-    } catch(err){
-      console.error(err);
-      alert("Generation failed — likely out of browser memory for this row count. Try a smaller number of rows, or generate in the 'Single flat table' structure which uses less memory per row.");
-    } finally {
-      setGeneratingState(false);
+  await new Promise(res=>setTimeout(res,20)); // let the button repaint before heavy work starts
+  const t0 = performance.now();
+  try{
+    const structure = document.getElementById('structure').value;
+    const companyName = document.getElementById('companyName').value.trim();
+    const sizeKey = getCompanySize();
+    if(structure === "relational"){
+      const domainKey = document.getElementById('domain').value;
+      const market = document.getElementById('market').value;
+      const detail = document.getElementById('detail').value;
+      const yearStart = parseInt(document.getElementById('yearStart').value);
+      const yearEnd = parseInt(document.getElementById('yearEnd').value);
+      const messiness = parseInt(document.getElementById('messiness').value);
+      const trendMode = document.getElementById('trendMode').value;
+      const cities = CITIES[market];
+      generatedData = await buildCustomRelational(domainKey, rowCount, detail, cities, yearStart, yearEnd, messiness, market, companyName, sizeKey, trendMode);
+      generatedIssues = generatedData.issues;
+      renderRelationalPreview(generatedData);
+    } else {
+      generatedData = await generateDataset();
+      renderPreview(generatedData);
     }
-  }, 30);
+    const elapsed = ((performance.now()-t0)/1000).toFixed(1);
+    document.getElementById('genTime').textContent = `Generated in ${elapsed}s`;
+  } catch(err){
+    console.error(err);
+    alert("Generation failed — likely out of browser memory for this row count. Try a smaller number of rows, or generate in the 'Single flat table' structure which uses less memory per row.");
+  } finally {
+    setGeneratingState(false);
+  }
 });
 
 const EXCEL_MAX_ROWS = 1048576 - 10; // leave headroom below Excel's hard sheet limit
